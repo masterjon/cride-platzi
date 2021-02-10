@@ -4,6 +4,7 @@
 from django.conf import settings
 from django.contrib.auth import password_validation, authenticate
 from django.core.validators import RegexValidator
+from django.db import transaction
 
 # Django REST Framework
 from rest_framework import serializers
@@ -84,9 +85,10 @@ class UserSignUpSerializer(serializers.Serializer):
     def create(self, data):
         """Handle user and profile creation."""
         data.pop('password_confirmation')
-        user = User.objects.create_user(**data, is_verified=False, is_client=True)
-        Profile.objects.create(user=user)
-        send_confirmation_email.delay(user_pk=user.pk)
+        with transaction.atomic():
+            user = User.objects.create_user(**data, is_verified=False, is_client=True)
+            Profile.objects.create(user=user)
+            transaction.on_commit(lambda:send_confirmation_email.delay(user_pk=user.pk))
         return user
 
 
